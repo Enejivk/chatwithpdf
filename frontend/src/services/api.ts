@@ -1,9 +1,8 @@
 import axios from "axios";
-
-// API base URL configuration
+import Cookies from "js-cookie";
 const API_BASE_URL = "http://localhost:8000";
 
-// Configure axios instance
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -11,14 +10,8 @@ const apiClient = axios.create({
   },
 });
 
-/**
- * Service for handling PDF document-related API calls
- */
+
 export const documentService = {
-  /**
-   * Fetch all document collections
-   * @returns {Promise<string[]>} Array of collection names
-   */
   getCollections: async (): Promise<string[]> => {
     try {
       const response = await apiClient.get<string[]>("/get_collections");
@@ -29,11 +22,7 @@ export const documentService = {
     }
   },
 
-  /**
-   * Upload a PDF document to the server
-   * @param {File} file - The PDF file to upload
-   * @returns {Promise<any>} Upload response from server
-   */
+
   uploadPdf: async (file: File): Promise<any> => {
     try {
       const formData = new FormData();
@@ -57,16 +46,7 @@ export const documentService = {
   },
 };
 
-/**
- * Service for handling chat interactions with the PDF
- */
 export const chatService = {
-  /**
-   * Send a message to chat with a PDF document
-   * @param {string} query - The user's message/query
-   * @param {string} fileName - The PDF file name to query against
-   * @returns {Promise<{ response: string }>} Chat response from server
-   */
   sendMessage: async (
     query: string,
     fileName: string
@@ -85,16 +65,20 @@ export const chatService = {
   },
 };
 
-/**
- * Utility functions for working with documents
- */
+
 export const documentUtils = {
-  /**
-   * Remove the .pdf extension from a filename
-   * @param {string} filename - The filename to process
-   * @returns {string} Filename without .pdf extension
-   */
   removePdfExtension: (filename: string): string => {
     return filename.replace(".pdf", "");
   },
 };
+
+
+export const loginUsingGoogleData = async (data: any) => {
+  try {
+    const response = await axios.post("auth/login_google", data);
+    Cookies.set("token", response.data);
+  } catch (error) {
+    console.error("Error during Google login:", error);
+    throw error;
+  }
+}
