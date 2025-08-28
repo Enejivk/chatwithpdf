@@ -6,9 +6,17 @@ import { BsFillFilePdfFill } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa6";
 import { HiOutlineMenuAlt2 } from "react-icons/hi";
 import { IoClose } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // Import types and services
-import type { Message, UploadDocumentProps, AddTextInputProps } from "./types";
+import type {
+  Message,
+  UploadDocumentProps,
+  AddTextInputProps,
+  ChatSession,
+  MessageHistoryProps,
+} from "./types";
 import { documentService, chatService, documentUtils } from "./services/api";
 const UploadDocument: React.FC<UploadDocumentProps> = ({
   setFileName,
@@ -147,22 +155,29 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
   fileName,
   isMobile = false,
   showDocuments = false,
+  currentSession,
+  setMessages: setParentMessages,
+  messages: parentMessages,
 }) => {
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const messageContainerRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      content: "Hello! How can I assist you today?",
-      sender: "bot",
-    },
-    {
-      id: 2,
-      content: "Please upload a PDF document to get started.",
-      sender: "bot",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(
+    parentMessages || [
+      {
+        id: 1,
+        content: "Hello! How can I assist you today?",
+        sender: "bot",
+        timestamp: new Date(),
+      },
+      {
+        id: 2,
+        content: "Please upload a PDF document to get started.",
+        sender: "bot",
+        timestamp: new Date(),
+      },
+    ]
+  );
 
   useEffect(() => {
     if (messageContainerRef.current) {
@@ -170,6 +185,12 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
         messageContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (setParentMessages && parentMessages !== messages) {
+      setParentMessages(messages);
+    }
+  }, [messages, setParentMessages, parentMessages]);
 
   const fetchResponse = async (message: string) => {
     setIsLoading(true);
@@ -180,6 +201,7 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
         id: messages.length + 1,
         content: data.response,
         sender: "bot",
+        timestamp: new Date(),
       };
       setMessages((prevMessages) => [...prevMessages, botMessage]);
     } catch (error) {
@@ -190,6 +212,7 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
         content:
           "Sorry, I encountered an error processing your request. Please try again.",
         sender: "bot",
+        timestamp: new Date(),
       };
       setMessages((prevMessages) => [...prevMessages, errorMessage]);
     } finally {
@@ -211,6 +234,7 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
       id: messages.length + 1,
       content: inputMessage,
       sender: "user",
+      timestamp: new Date(),
     };
 
     // add the new message to the messages array
@@ -310,10 +334,174 @@ const AddTextInput: React.FC<AddTextInputProps> = ({
   );
 };
 
+// Add the MessageHistory component before the App component
+const MessageHistory: React.FC<MessageHistoryProps> = ({ onSelectSession }) => {
+  // Dummy data for message history
+  const [chatSessions] = useState<ChatSession[]>([
+    {
+      id: "1",
+      title: "Understanding Quantum Computing",
+      documentName: "quantum_computing.pdf",
+      lastMessageDate: new Date(2025, 7, 25, 14, 30),
+      messages: [
+        {
+          id: 1,
+          content: "Can you explain quantum entanglement?",
+          sender: "user",
+          timestamp: new Date(2025, 7, 25, 14, 25),
+        },
+        {
+          id: 2,
+          content:
+            "Quantum entanglement is a physical phenomenon that occurs when a pair or group of particles are generated, interact, or share spatial proximity in a way such that the quantum state of each particle cannot be described independently of the state of the others. Measurements of physical properties such as position, momentum, spin, and polarization performed on entangled particles can show correlations that would be impossible under the laws of classical physics.",
+          sender: "bot",
+          timestamp: new Date(2025, 7, 25, 14, 30),
+        },
+      ],
+    },
+    {
+      id: "2",
+      title: "AI Ethics Discussion",
+      documentName: "ai_ethics.pdf",
+      lastMessageDate: new Date(2025, 7, 24, 10, 15),
+      messages: [
+        {
+          id: 1,
+          content: "What are the main ethical concerns with AI development?",
+          sender: "user",
+          timestamp: new Date(2025, 7, 24, 10, 10),
+        },
+        {
+          id: 2,
+          content:
+            "The main ethical concerns with AI development include privacy issues, algorithmic bias, job displacement, safety and security risks, transparency and explainability challenges, autonomous weapons development, and the concentration of power in the hands of a few tech companies.",
+          sender: "bot",
+          timestamp: new Date(2025, 7, 24, 10, 15),
+        },
+      ],
+    },
+    {
+      id: "3",
+      title: "Climate Change Research",
+      documentName: "climate_report_2025.pdf",
+      lastMessageDate: new Date(2025, 7, 22, 16, 45),
+      messages: [
+        {
+          id: 1,
+          content: "What are the projected temperature increases for 2050?",
+          sender: "user",
+          timestamp: new Date(2025, 7, 22, 16, 40),
+        },
+        {
+          id: 2,
+          content:
+            "According to the report, global temperatures are projected to increase by 1.5°C to 2.4°C by 2050 under current policy scenarios. However, with more aggressive emissions reductions, we could limit warming to the lower end of that range.",
+          sender: "bot",
+          timestamp: new Date(2025, 7, 22, 16, 45),
+        },
+      ],
+    },
+  ]);
+
+  const formatDate = (date: Date) => {
+    const now = new Date();
+    const yesterday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 1
+    );
+
+    if (date.toDateString() === now.toDateString()) {
+      return `Today at ${date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday at ${date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    } else {
+      return (
+        date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+        ` at ${date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden w-full">
+      <div className="border-b border-gray-700 p-3 md:p-5 flex-shrink-0 text-center md:text-left border-2">
+        <h1 className="text-lg md:text-xl font-semibold text-gray-100 mb-1">
+          Chat History
+        </h1>
+        <p className="text-xs md:text-sm text-gray-400">
+          View and continue your previous conversations
+        </p>
+      </div>
+
+      <div className="p-3 md:p-5 flex-1 overflow-y-auto">
+        <div className="space-y-3">
+          {chatSessions.map((session) => (
+            <div
+              key={session.id}
+              onClick={() => onSelectSession(session)}
+              className="cursor-pointer p-3 rounded-lg bg-gray-700/40 hover:bg-gray-700/60 transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-1">
+                <h3 className="font-medium text-gray-200 text-sm md:text-base">
+                  {session.title}
+                </h3>
+                <span className="text-xs text-gray-400">
+                  {formatDate(session.lastMessageDate)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                <BsFillFilePdfFill className="text-red-500" />
+                <span>{session.documentName}</span>
+              </div>
+              <p className="text-xs md:text-sm text-gray-300 truncate">
+                {session.messages[
+                  session.messages.length - 1
+                ].content.substring(0, 100)}
+                {session.messages[session.messages.length - 1].content.length >
+                100
+                  ? "..."
+                  : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [fileName, setFileName] = useState<string>("");
   const [showDocuments, setShowDocuments] = useState<boolean>(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
+    null
+  );
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1,
+      content: "Hello! How can I assist you today?",
+      sender: "bot",
+      timestamp: new Date(),
+    },
+    {
+      id: 2,
+      content: "Please upload a PDF document to get started.",
+      sender: "bot",
+      timestamp: new Date(),
+    },
+  ]);
 
   useEffect(() => {
     // Check if we're on mobile on initial load
@@ -337,56 +525,127 @@ const App = () => {
     setShowDocuments(false);
   };
 
-  return (
-    <div className="bg-gray-900 min-h-screen h-screen flex flex-col text-gray-100 overflow-hidden">
-      <div className="container mx-auto py-3 md:py-6 px-3 md:px-4 flex flex-col flex-1 overflow-hidden">
-        {/* Mobile Document Toggle Button */}
-        <div className="md:hidden mb-3 flex-shrink-0">
-          <Button
-            onClick={() => setShowDocuments(!showDocuments)}
-            className="w-full flex items-center justify-center gap-2"
-          >
-            {showDocuments ? (
-              <>
-                <IoClose className="text-lg" />
-                <span>Hide Documents</span>
-              </>
-            ) : (
-              <>
-                <HiOutlineMenuAlt2 className="text-lg" />
-                <span>Show Documents</span>
-              </>
-            )}
-          </Button>
-        </div>
+  const handleSelectSession = (session: ChatSession) => {
+    setCurrentSession(session);
+    setFileName(session.documentName);
+    setMessages(session.messages);
+    setShowHistory(false);
+  };
 
-        {/* Responsive Layout */}
-        <div className="flex flex-col md:flex-row md:justify-between gap-4 md:gap-6 flex-1 overflow-hidden">
-          {/* Documents Panel - Hidden by default on mobile, toggleable, always visible on desktop */}
-          <div
-            className={`${
-              showDocuments || !isMobile ? "flex" : "hidden"
-            } md:flex w-full md:w-1/4 bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-4 md:mb-0 flex-shrink-0 md:flex-shrink-0 ${
-              showDocuments && isMobile ? "h-[50vh]" : "flex-col"
-            }`}
-          >
-            <UploadDocument
-              fileName={fileName}
-              setFileName={handleSetFileName}
-            />
+  return (
+    <BrowserRouter>
+      <div className="bg-gray-900 min-h-screen h-screen flex flex-col text-gray-100 overflow-hidden">
+        <div className="container mx-auto py-3 md:py-6 px-3 md:px-4 flex flex-col flex-1 overflow-hidden">
+          {/* Mobile Toggle Buttons */}
+          <div className="md:hidden mb-3 flex gap-2 flex-shrink-0">
+            <Button
+              onClick={() => {
+                setShowDocuments(!showDocuments);
+                if (!showDocuments) setShowHistory(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-2"
+            >
+              {showDocuments ? (
+                <>
+                  <IoClose className="text-lg" />
+                  <span>Hide Documents</span>
+                </>
+              ) : (
+                <>
+                  <HiOutlineMenuAlt2 className="text-lg" />
+                  <span>Documents</span>
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={() => {
+                setShowHistory(!showHistory);
+                if (!showHistory) setShowDocuments(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-2"
+            >
+              {showHistory ? (
+                <>
+                  <IoClose className="text-lg" />
+                  <span>Hide History</span>
+                </>
+              ) : (
+                <>
+                  <MdHistory className="text-lg" />
+                  <span>History</span>
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* Chat Panel - Full width on all screens */}
-          <div className="w-full md:w-3/4 bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1">
-            <AddTextInput
-              fileName={fileName}
-              isMobile={isMobile}
-              showDocuments={showDocuments}
-            />
+          {/* Main Layout */}
+          <div className="flex md:gap-6 flex-1 overflow-hidden">
+            {/* Sidebar - Contains both Documents and History on desktop */}
+            <div className="hidden md:flex flex-col w-1/4 gap-4">
+              {/* Documents Panel */}
+              <div className="bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex-1">
+                <UploadDocument
+                  fileName={fileName}
+                  setFileName={handleSetFileName}
+                />
+              </div>
+
+              {/* Message History Panel */}
+              <div className="bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex-1">
+                <MessageHistory onSelectSession={handleSelectSession} />
+              </div>
+            </div>
+
+            {/* Mobile Documents Panel - Conditionally visible */}
+            {showDocuments && isMobile && (
+              <div className="absolute z-10 inset-x-0 top-16 mx-3 h-[60vh] bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+                <UploadDocument
+                  fileName={fileName}
+                  setFileName={handleSetFileName}
+                />
+              </div>
+            )}
+
+            {/* Mobile History Panel - Conditionally visible */}
+            {showHistory && isMobile && (
+              <div className="absolute z-10 inset-x-0 top-16 mx-3 h-[60vh] bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+                <MessageHistory
+                  isMobile={true}
+                  showHistory={showHistory}
+                  onSelectSession={handleSelectSession}
+                />
+              </div>
+            )}
+
+            {/* Chat Panel - Full width on all screens */}
+            <div className="w-full md:w-3/4 bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <AddTextInput
+                      fileName={fileName}
+                      isMobile={isMobile}
+                      showDocuments={showDocuments}
+                      currentSession={currentSession || undefined}
+                      messages={messages}
+                      setMessages={setMessages}
+                    />
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <MessageHistory onSelectSession={handleSelectSession} />
+                  }
+                />
+              </Routes>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </BrowserRouter>
   );
 };
 
