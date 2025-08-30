@@ -3,27 +3,17 @@ import { Button } from "../ui/button";
 import { FaUserCircle } from "react-icons/fa";
 import { IoMdLogOut } from "react-icons/io";
 import AuthModal from "./AuthModal";
-import {
-  getUserProfile,
-  clearUserProfile,
-  type UserProfile,
-} from "../../utils/auth";
+import { getUserProfile, clearUserProfile, type UserProfile } from "../../utils/auth";
 
 interface AuthButtonProps {
   isMobile?: boolean;
 }
-
-/**
- * AuthButton Component
- * Button for opening the authentication modal or displaying user profile
- */
 
 const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [showMenu, setShowMenu] = useState<boolean>(false);
 
-  // Check for user on mount and after modal closes
   useEffect(() => {
     setUser(getUserProfile());
   }, [isOpen]);
@@ -34,11 +24,9 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
     setShowMenu(false);
   };
 
-  // For authenticated users
   if (user) {
     return (
       <div className="relative">
-        {/* Profile button for desktop */}
         {!isMobile && (
           <div className="relative">
             <Button
@@ -53,13 +41,10 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
               <span className="max-w-[100px] truncate">{user.name}</span>
             </Button>
 
-            {/* Dropdown menu */}
             {showMenu && (
               <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-50 border border-gray-700 overflow-hidden">
                 <div className="p-3 border-b border-gray-700">
-                  <p className="text-sm font-medium text-white truncate">
-                    {user.name}
-                  </p>
+                  <p className="text-sm font-medium text-white truncate">{user.name}</p>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
                 </div>
                 <button
@@ -74,7 +59,6 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
           </div>
         )}
 
-        {/* Profile button for mobile */}
         {isMobile && (
           <Button
             onClick={() => setShowMenu(!showMenu)}
@@ -88,13 +72,10 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
           </Button>
         )}
 
-        {/* Mobile dropdown */}
         {isMobile && showMenu && (
           <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-50 border border-gray-700 overflow-hidden">
             <div className="p-3 border-b border-gray-700">
-              <p className="text-sm font-medium text-white truncate">
-                {user.name}
-              </p>
+              <p className="text-sm font-medium text-white truncate">{user.name}</p>
               <p className="text-xs text-gray-400 truncate">{user.email}</p>
             </div>
             <button
@@ -110,10 +91,8 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
     );
   }
 
-  // For non-authenticated users
   return (
     <div className="relative">
-      {/* Desktop Button */}
       {!isMobile && (
         <Button
           onClick={() => setIsOpen(true)}
@@ -124,7 +103,6 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
         </Button>
       )}
 
-      {/* Mobile Button */}
       {isMobile && (
         <Button
           onClick={() => setIsOpen(true)}
@@ -134,7 +112,6 @@ const AuthButton: React.FC<AuthButtonProps> = ({ isMobile = false }) => {
         </Button>
       )}
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

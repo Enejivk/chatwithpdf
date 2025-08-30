@@ -2,12 +2,7 @@ import React, { useState } from "react";
 import { BsFillFilePdfFill } from "react-icons/bs";
 import type { MessageHistoryProps, ChatSession } from "../../types";
 
-/**
- * MessageHistory Component
- * Displays a list of previous chat sessions and allows the user to select one
- */
 const MessageHistory: React.FC<MessageHistoryProps> = ({ onSelectSession }) => {
-  // Sample data for message history - would be fetched from backend in production
   const [chatSessions] = useState<ChatSession[]>([
     {
       id: "1",
@@ -110,7 +105,6 @@ const MessageHistory: React.FC<MessageHistoryProps> = ({ onSelectSession }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
-
       <div className="p-3 md:p-5 flex-1 overflow-y-auto">
         <div className="space-y-3">
           {chatSessions.map((session) => (

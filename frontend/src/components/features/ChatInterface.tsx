@@ -4,11 +4,8 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { chatService } from "../../services/api";
 import type { Message, AddTextInputProps } from "../../types";
+import { useParams, useNavigate } from "react-router-dom";
 
-/**
- * ChatInterface Component
- * Provides the main chat UI for interacting with PDF documents
- */
 const ChatInterface: React.FC<AddTextInputProps> = ({
   fileName,
   setMessages: setParentMessages,
@@ -17,6 +14,10 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const messageContainerRef = useRef<HTMLDivElement>(null);
+  const [chatGroupId, setChatGroupId] = useState<string | undefined>(undefined);
+  const { chatId } = useParams<{ chatId: string }>();
+  const navigate = useNavigate();
+
   const [messages, setMessages] = useState<Message[]>(
     parentMessages || [
       {
@@ -28,7 +29,6 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
     ]
   );
 
-  // Scroll to bottom of messages when messages change
   useEffect(() => {
     if (messageContainerRef.current) {
       messageContainerRef.current.scrollTop =
@@ -36,21 +36,54 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
     }
   }, [messages]);
 
-  // Sync messages with parent component if provided
   useEffect(() => {
     if (setParentMessages && parentMessages !== messages) {
       setParentMessages(messages);
     }
   }, [messages, setParentMessages, parentMessages]);
 
+  useEffect(() => {
+    const loadChat = async () => {
+      if (chatId) {
+        try {
+          setIsLoading(true);
+          const chatData = await chatService.getChatById(chatId);
+          setMessages(chatData.messages || []);
+          setChatGroupId(chatId);
+        } catch (error) {
+          console.error("Error loading chat:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadChat();
+  }, [chatId]);
+
   /**
    * Fetch response from backend API
    * @param message - User's message to send to the backend
    */
   const fetchResponse = async (message: string) => {
+    if (!fileName) return;
+
     setIsLoading(true);
     try {
-      const data = await chatService.sendMessage(message, fileName);
+      const data = await chatService.sendMessage(
+        message,
+        fileName,
+        chatGroupId,
+        messages.length > 0
+          ? String(messages[messages.length - 1].id)
+          : undefined
+      );
+
+      setChatGroupId(data.chatGroupId);
+
+      if (!chatId && data.chatGroupId) {
+        navigate(`/chat/${data.chatGroupId}`, { replace: true });
+      }
 
       const botMessage: Message = {
         id: messages.length + 1,
@@ -61,7 +94,6 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
       setMessages((prevMessages) => [...prevMessages, botMessage]);
     } catch (error) {
       console.error("Error fetching response:", error);
-      // Add error message to the chat
       const errorMessage: Message = {
         id: messages.length + 1,
         content:
@@ -75,9 +107,6 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
     }
   };
 
-  /**
-   * Handle form submission for sending a message
-   */
   const handleSubmit = (
     e:
       | React.FormEvent<HTMLFormElement>
@@ -95,20 +124,13 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
       timestamp: new Date(),
     };
 
-    // Add the new message to the messages array
     setMessages([...messages, newMessage]);
-
-    // Clear the input field
     setInputMessage("");
-
     fetchResponse(newMessage.content);
   };
 
   return (
     <div className="flex flex-col h-full rounded-lg">
-    
-
-      {/* Message container - Flexible height */}
       <div
         className="flex-1 overflow-y-auto md:px-25 space-y-3 md:space-y-4 px-3"
         ref={messageContainerRef}
@@ -149,24 +171,27 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder={
               fileName
-                ? "Ask something about your document..."
-                : "Upload and select a document to start chatting"
+                ? "Ask a question about your document..."
+                : "Please upload a document first"
             }
+            disabled={!fileName || isLoading}
+            className="min-h-[45px] max-h-[180px] text-sm md:text-base resize-none"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (inputMessage.trim() !== "") {
+                if (inputMessage.trim() !== "" && fileName && !isLoading) {
                   handleSubmit(e);
                 }
               }
             }}
-            className="bg-gray-900 border-gray-800 text-gray-100 text-sm md:text-base placeholder:text-gray-400 resize-none rounded-xl min-h-[45px] md:min-h-[60px] max-h-[100px] focus:border-[#DD5953] transition-all"
           />
           <Button
-            disabled={isLoading || inputMessage.trim() === "" || !fileName}
-            className="bg-[#DD5953] hover:bg-[#c74c47] text-white h-[45px] md:h-[60px] rounded-xl px-3 md:px-6 flex-shrink-0 transition-all duration-300"
+            type="submit"
+            className="h-10 w-10 shrink-0 rounded-full bg-[#DD5953] hover:bg-[#c74c47] transition-colors"
+            aria-label="Send message"
+            disabled={!fileName || isLoading || inputMessage.trim() === ""}
           >
-            <IoMdSend className="h-4 w-4 md:h-5 md:w-5" />
+            <IoMdSend className="h-5 w-5 text-white" />
           </Button>
         </form>
       </div>

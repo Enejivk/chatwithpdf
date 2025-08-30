@@ -6,7 +6,6 @@ import Logo from "../ui/Logo";
 import { parseGoogleCredential, storeUserProfile } from "../../utils/auth";
 import { loginUsingGoogleData } from "../../services/api";
 
-
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,21 +21,18 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
     try {
       if (!credentialResponse.credential) {
         throw new Error("No credential received");
       }
 
-      // Parse and store user information
       const userProfile = parseGoogleCredential(credentialResponse.credential);
       storeUserProfile(userProfile);
 
-      // Send data to backend for login/registration
-      const response = await loginUsingGoogleData(credentialResponse);
+      loginUsingGoogleData(userProfile);
       setLoginError(null);
 
-      // Close modal after successful sign in
       onClose();
     } catch (error) {
       console.error("Google login error:", error);

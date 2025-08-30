@@ -1,6 +1,3 @@
-/**
- * Message interface for chat interactions
- */
 export interface Message {
   id: number;
   content: string;
@@ -8,9 +5,6 @@ export interface Message {
   timestamp?: Date;
 }
 
-/**
- * Chat session for message history
- */
 export interface ChatSession {
   id: string;
   title: string;
@@ -19,28 +13,30 @@ export interface ChatSession {
   messages: Message[];
 }
 
-/**
- * Props for the MessageHistory component
- */
 export interface MessageHistoryProps {
   isMobile?: boolean;
   showHistory?: boolean;
   onSelectSession: (session: ChatSession) => void;
 }
 
-/**
- * Props for the UploadDocument component
- */
+export type DocumentItem = {
+  id: string;
+  filename: string;
+  document_id: string;
+  title: string;
+  created_at: string;
+};
+
+export type DocumentList = DocumentItem[];
+
 export interface UploadDocumentProps {
-  setFileName: (file: string) => void;
-  fileName: string;
+  setSelectedFileIds: (fileIds: string[]) => void;
+  selectedFileIds: string[];
 }
 
-/**
- * Props for the AddTextInput component
- */
 export interface AddTextInputProps {
-  fileName: string;
+  fileName?: string;
+  selectedFileIds?: string[];
   isMobile?: boolean;
   showDocuments?: boolean;
   currentSession?: ChatSession;

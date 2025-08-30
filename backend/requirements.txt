@@ -1,0 +1,14 @@
+fastapi>=0.103.0
+pydantic>=2.0.0
+sqlalchemy>=2.0.0
+uvicorn>=0.15.0
+python-multipart>=0.0.6
+langchain>=0.0.300
+langchain-text-splitters>=0.0.1
+langchain-community>=0.0.10
+langchain-openai>=0.0.2
+chromadb>=0.4.0
+PyPDF2>=3.0.0
+pypdf>=3.15.0
+openai>=1.0.0
+python-jose[cryptography]>=3.3.0

@@ -1,42 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { FaPlus } from "react-icons/fa6";
+import { FaPlus, FaCheck } from "react-icons/fa";
 import { BsFillFilePdfFill } from "react-icons/bs";
-import { documentService, documentUtils } from "../../services/api";
-import type { UploadDocumentProps } from "../../types";
+import { documentService } from "../../services/api";
+import type { DocumentList, UploadDocumentProps } from "../../types";
+import { toast, Toaster } from "sonner";
 
-/**
- * UploadDocument Component
- * Handles PDF document uploads and displays document selection interface
- */
 const UploadDocument: React.FC<UploadDocumentProps> = ({
-  setFileName,
-  fileName,
+  setSelectedFileIds,
+  selectedFileIds = [],
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [collectionName, setCollectionName] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<DocumentList>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  /**
-   * Fetch all available document collections from the backend
-   */
-  const fetchCollectionNames = async () => {
+  const fetchDocuments = async () => {
     try {
-      const collections = await documentService.getCollections();
-      setCollectionName(collections);
+      setIsLoading(true);
+      const documentList = await documentService.getDocuments();
+      setDocuments(documentList);
     } catch (error) {
-      console.error("Error fetching collection names:", error);
+      console.error("Error fetching documents:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Load document collections on component mount
   useEffect(() => {
-    fetchCollectionNames();
+    fetchDocuments();
   }, []);
 
-  /**
-   * Upload a file to the backend server
-   * @param file - The PDF file to upload
-   */
   const uploadFileToBackend = async (file: File) => {
     if (!file) return;
 
@@ -44,34 +37,48 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
       setIsUploading(true);
       await documentService.uploadPdf(file);
 
-      const processedFileName = documentUtils.removePdfExtension(file.name);
-      setCollectionName((prevNames) => {
-        if (!prevNames.includes(processedFileName)) {
-          return [...prevNames, processedFileName];
-        }
-        return prevNames;
-      });
-
-      setFileName(file.name);
-      alert("File uploaded successfully!");
+      await fetchDocuments();
+      setFile(null);
+      toast.success("File uploaded successfully!");
     } catch (err) {
       console.error("Upload error:", err);
+      toast.error("Failed to upload file");
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Upload file when it changes
   useEffect(() => {
     if (file) {
       uploadFileToBackend(file);
     }
   }, [file]);
 
+  const selectAllDocuments = () => {
+    const allDocumentIds = documents.map((doc) => doc.document_id);
+    setSelectedFileIds(allDocumentIds);
+  };
+
+  const toggleDocumentSelection = (documentId: string) => {
+    if (selectedFileIds.includes(documentId)) {
+      setSelectedFileIds(selectedFileIds.filter((id) => id !== documentId));
+    } else {
+      setSelectedFileIds([...selectedFileIds, documentId]);
+    }
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
-
-
+      <Toaster position="top-right" richColors />
       <div className="p-3 md:p-5 flex-1 overflow-hidden flex flex-col">
         <div className="mb-3 md:mb-4 flex-shrink-0 flex justify-center">
           <input
@@ -114,28 +121,81 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
           </div>
         )}
 
-        {collectionName.length > 0 && (
+        {isLoading ? (
+          <div className="mt-6 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-[#DD5953] border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-gray-400 text-sm">
+              Loading documents...
+            </span>
+          </div>
+        ) : documents.length > 0 ? (
           <div className="mt-3 md:mt-4 flex-1 overflow-hidden flex flex-col">
-            <h3 className="text-xs md:text-sm font-medium text-gray-400 mb-2 md:mb-3 flex-shrink-0 text-center md:text-left">
-              Your Documents
-            </h3>
+            <div className="flex justify-between items-center mb-2 md:mb-3">
+              <h3 className="text-xs md:text-sm font-medium text-gray-400 flex-shrink-0 text-center md:text-left">
+                Your Documents
+              </h3>
+              <div className="flex items-center">
+                {selectedFileIds.length > 0 ? (
+                  <div className="flex items-center">
+                    <span className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded-full mr-2">
+                      {selectedFileIds.length} selected
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFileIds([]);
+                      }}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectAllDocuments();
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Select All
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="space-y-2 overflow-y-auto pr-2 flex-1 flex flex-col items-center md:items-start">
-              {collectionName.map((name) => (
+              {documents.map((doc) => (
                 <div
-                  key={name}
-                  onClick={() => setFileName(name)}
-                  className={`cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl transition-all duration-200 w-[80%] md:w-full
+                  key={doc.id}
+                  onClick={() => toggleDocumentSelection(doc.document_id)}
+                  className={`cursor-pointer flex items-center p-3 rounded-xl transition-all duration-200 w-[90%] md:w-full
                   ${
-                    fileName === name
+                    selectedFileIds.includes(doc.document_id)
                       ? "bg-gray-700 border-l-4 border-[#DD5953]"
                       : "bg-gray-700/30 hover:bg-gray-700/50"
                   }`}
                 >
-                  <BsFillFilePdfFill className="text-red-500 text-lg flex-shrink-0" />
-                  <span className="text-gray-200 text-sm truncate">{name}</span>
+                  <div className="flex-shrink-0 mr-3 flex items-center justify-center">
+                    <BsFillFilePdfFill className="text-red-500 text-xl" />
+                  </div>
+                  <div className="flex flex-col flex-grow overflow-hidden">
+                    <span className="text-gray-200 text-sm font-medium truncate">
+                      {doc.title || doc.filename}
+                    </span>
+                    <span className="text-xs text-gray-400 mt-1">
+                      Uploaded: {formatDate(doc.created_at)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
+          </div>
+        ) : (
+          <div className="mt-6 flex flex-col items-center justify-center text-center">
+            <BsFillFilePdfFill className="text-gray-500 text-4xl mb-2" />
+            <p className="text-gray-400 text-sm">
+              No documents found. Upload a PDF to get started.
+            </p>
           </div>
         )}
       </div>

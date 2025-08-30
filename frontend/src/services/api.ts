@@ -1,17 +1,24 @@
 import axios from "axios";
-import Cookies from "js-cookie";
-const API_BASE_URL = "http://localhost:8000";
+import type { DocumentList } from "../types";
 
+const API_BASE_URL = "http://localhost:8000";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  withCredentials: true,
 });
 
-
 export const documentService = {
+  getDocuments: async (): Promise<DocumentList> => {
+    try {
+      const response = await apiClient.get<DocumentList>("/user/documents");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      throw error;
+    }
+  },
+
   getCollections: async (): Promise<string[]> => {
     try {
       const response = await apiClient.get<string[]>("/get_collections");
@@ -22,21 +29,17 @@ export const documentService = {
     }
   },
 
-
   uploadPdf: async (file: File): Promise<any> => {
     try {
       const formData = new FormData();
       formData.append("pdf_file", file);
 
-      const response = await axios.post(
-        `${API_BASE_URL}/upload_pdf`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const response = await apiClient.post("/upload_pdf", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        withCredentials: true,
+      });
 
       return response.data;
     } catch (error) {
@@ -49,12 +52,19 @@ export const documentService = {
 export const chatService = {
   sendMessage: async (
     query: string,
-    fileName: string
-  ): Promise<{ response: string }> => {
+    fileName: string,
+    chatGroupId?: string,
+    messageId?: string
+  ): Promise<{ response: string; chatGroupId: string }> => {
     try {
-      const response = await apiClient.post<{ response: string }>("/chat", {
+      const response = await apiClient.post<{
+        response: string;
+        chatGroupId: string;
+      }>("/chat", {
         query,
         file_name: fileName,
+        chat_group_id: chatGroupId,
+        message_id: messageId,
       });
 
       return response.data;
@@ -63,8 +73,27 @@ export const chatService = {
       throw error;
     }
   },
-};
 
+  getChatGroups: async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.get<any[]>("/chat_groups");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching chat groups:", error);
+      throw error;
+    }
+  },
+
+  getChatById: async (chatId: string): Promise<any> => {
+    try {
+      const response = await apiClient.get<any>(`/chat/${chatId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching chat ${chatId}:`, error);
+      throw error;
+    }
+  },
+};
 
 export const documentUtils = {
   removePdfExtension: (filename: string): string => {
@@ -72,13 +101,10 @@ export const documentUtils = {
   },
 };
 
-
 export const loginUsingGoogleData = async (data: any) => {
   try {
-    const response = await axios.post("auth/login_google", data);
-    Cookies.set("token", response.data);
+    await apiClient.post(`/auth/google`, data);
   } catch (error) {
-    console.error("Error during Google login:", error);
     throw error;
   }
-}
+};
