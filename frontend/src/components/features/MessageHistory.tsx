@@ -1,80 +1,63 @@
-import React, { useState } from "react";
-import { BsFillFilePdfFill } from "react-icons/bs";
-import type { MessageHistoryProps, ChatSession } from "../../types";
+import React, { useState, useEffect, useRef } from "react";
+import { FaHistory, FaUser } from "react-icons/fa";
+import { useNavigate, useLocation } from "react-router-dom";
+import type { TailwindDocs } from "../../types";
+import { chatService } from "../../services/api";
+import { toast, Toaster } from "sonner";
 
-const MessageHistory: React.FC<MessageHistoryProps> = ({ onSelectSession }) => {
-  const [chatSessions] = useState<ChatSession[]>([
-    {
-      id: "1",
-      title: "Understanding Quantum Computing",
-      documentName: "quantum_computing.pdf",
-      lastMessageDate: new Date(2025, 7, 25, 14, 30),
-      messages: [
-        {
-          id: 1,
-          content: "Can you explain quantum entanglement?",
-          sender: "user",
-          timestamp: new Date(2025, 7, 25, 14, 25),
-        },
-        {
-          id: 2,
-          content:
-            "Quantum entanglement is a physical phenomenon that occurs when a pair or group of particles are generated, interact, or share spatial proximity in a way such that the quantum state of each particle cannot be described independently of the state of the others. Measurements of physical properties such as position, momentum, spin, and polarization performed on entangled particles can show correlations that would be impossible under the laws of classical physics.",
-          sender: "bot",
-          timestamp: new Date(2025, 7, 25, 14, 30),
-        },
-      ],
-    },
-    {
-      id: "2",
-      title: "AI Ethics Discussion",
-      documentName: "ai_ethics.pdf",
-      lastMessageDate: new Date(2025, 7, 24, 10, 15),
-      messages: [
-        {
-          id: 1,
-          content: "What are the main ethical concerns with AI development?",
-          sender: "user",
-          timestamp: new Date(2025, 7, 24, 10, 10),
-        },
-        {
-          id: 2,
-          content:
-            "The main ethical concerns with AI development include privacy issues, algorithmic bias, job displacement, safety and security risks, transparency and explainability challenges, autonomous weapons development, and the concentration of power in the hands of a few tech companies.",
-          sender: "bot",
-          timestamp: new Date(2025, 7, 24, 10, 15),
-        },
-      ],
-    },
-    {
-      id: "3",
-      title: "Climate Change Research",
-      documentName: "climate_report_2025.pdf",
-      lastMessageDate: new Date(2025, 7, 22, 16, 45),
-      messages: [
-        {
-          id: 1,
-          content: "What are the projected temperature increases for 2050?",
-          sender: "user",
-          timestamp: new Date(2025, 7, 22, 16, 40),
-        },
-        {
-          id: 2,
-          content:
-            "According to the report, global temperatures are projected to increase by 1.5°C to 2.4°C by 2050 under current policy scenarios. However, with more aggressive emissions reductions, we could limit warming to the lower end of that range.",
-          sender: "bot",
-          timestamp: new Date(2025, 7, 22, 16, 45),
-        },
-      ],
-    },
-  ]);
+const MessageHistory: React.FC = () => {
+  const [userChats, setUserChats] = useState<TailwindDocs>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const previousPathRef = useRef<string>("");
 
-  /**
-   * Format a date for display in the chat history
-   * @param date - The date to format
-   * @returns Formatted date string
-   */
-  const formatDate = (date: Date) => {
+  // Function to fetch chat history
+  const fetchChatHistory = async () => {
+    try {
+      setIsLoading(true);
+      const chatHistory = await chatService.getChatHistory();
+      setUserChats(chatHistory);
+
+      if (chatHistory.length > 0) {
+        setUserName("User");
+      }
+    } catch (error) {
+      console.error("Failed to fetch chat history:", error);
+      toast.error("Failed to load chat history");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch user chat history when component mounts
+  useEffect(() => {
+    fetchChatHistory();
+  }, []);
+
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const pathParts = currentPath.split("/");
+
+    if (pathParts.length > 2 && pathParts[1] === "chat") {
+      setSelectedChatId(pathParts[2]);
+
+      // If coming from /chat/new to /chat/{id}, refresh the chat list
+      if (previousPathRef.current === "/chat/new" && pathParts[2] !== "new") {
+        fetchChatHistory();
+      }
+    } else {
+      setSelectedChatId(null);
+    }
+
+    // Update the previous path reference
+    previousPathRef.current = currentPath;
+  }, [location.pathname]);
+
+  // Format date for display
+  const formatDate = (date: Date): string => {
     const now = new Date();
     const yesterday = new Date(
       now.getFullYear(),
@@ -103,44 +86,97 @@ const MessageHistory: React.FC<MessageHistoryProps> = ({ onSelectSession }) => {
     }
   };
 
+  // Format date for Tailwind docs
+  const formatTailwindDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return formatDate(date);
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
-      <div className="p-3 md:p-5 flex-1 overflow-y-auto">
-        <div className="space-y-3">
-          {chatSessions.map((session) => (
-            <div
-              key={session.id}
-              onClick={() => onSelectSession(session)}
-              className="cursor-pointer rounded-lg hover:bg-gray-700/60 transition-all duration-300 group"
-            >
-              <div className="p-2 flex justify-between items-center">
-                <h3 className="font-medium text-gray-400 md:text-base truncate text-sm">
-                  {session.title}
-                </h3>
-                <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ml-2 flex-shrink-0">
-                  {formatDate(session.lastMessageDate)}
-                </span>
-              </div>
+      <Toaster position="top-right" richColors />
 
-              {/* Content that appears on hover */}
-              <div className="max-h-0 overflow-hidden group-hover:max-h-24 transition-all duration-300 ease-in-out px-2 pb-0 group-hover:pb-2">
-                <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                  <BsFillFilePdfFill className="text-red-500" />
-                  <span>{session.documentName}</span>
-                </div>
-                <p className="text-xs md:text-sm text-gray-300 truncate">
-                  {session.messages[
-                    session.messages.length - 1
-                  ].content.substring(0, 100)}
-                  {session.messages[session.messages.length - 1].content
-                    .length > 100
-                    ? "..."
-                    : ""}
-                </p>
+      <div className="p-3 md:p-5 flex-1 overflow-hidden flex flex-col">
+        {/* User profile section - shows when we have the user's name */}
+        <div className="mb-4 p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl backdrop-blur-sm border border-gray-700/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 rounded-full bg-blue-500/20">
+                <FaHistory className="text-blue-400 text-base" />
               </div>
+              <h2 className="text-base font-medium text-gray-200">
+                Chat History
+              </h2>
             </div>
-          ))}
+            <button
+              onClick={() => navigate("/chat/new")}
+              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg 
+              transition-all duration-200 transform hover:scale-105 
+              shadow-lg hover:shadow-blue-500/25 flex items-center gap-1.5 text-sm font-medium"
+            >
+              <span>New Chat</span>
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-2 text-gray-400 text-sm">
+              Loading history...
+            </span>
+          </div>
+        ) : userChats.length > 0 ? (
+          <div className="space-y-2 overflow-y-auto pr-2 flex-1">
+            {/* Display Tailwind docs from API */}
+            {userChats.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => {
+                  setSelectedChatId(chat.id);
+                  navigate(`/chat/${chat.id}`);
+                }}
+                className={`cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+                  selectedChatId === chat.id
+                    ? "bg-blue-500/10 border border-blue-500/30"
+                    : "hover:bg-gray-700/50 bg-gray-700/30"
+                }`}
+              >
+                <div className="flex items-center">
+                  <h3 className="text-sm font-medium text-gray-200 truncate">
+                    {chat.title}
+                  </h3>
+                </div>
+                <div className="flex items-center mt-1">
+                  <span className="text-xs text-gray-400">
+                    {formatTailwindDate(chat.created_at)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <FaHistory className="text-gray-500 text-4xl mb-2" />
+            <p className="text-gray-400 text-sm">No message history found.</p>
+            <p className="text-gray-500 text-xs mt-1">
+              Start a new conversation to see it here.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

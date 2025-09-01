@@ -13,16 +13,9 @@ export interface ChatSession {
   messages: Message[];
 }
 
-export interface MessageHistoryProps {
-  isMobile?: boolean;
-  showHistory?: boolean;
-  onSelectSession: (session: ChatSession) => void;
-}
-
 export type DocumentItem = {
   id: string;
   filename: string;
-  document_id: string;
   title: string;
   created_at: string;
 };
@@ -43,3 +36,47 @@ export interface AddTextInputProps {
   setMessages?: (messages: Message[]) => void;
   messages?: Message[];
 }
+
+/**
+ * Tailwind document type for chat history
+ */
+export type TailwindDoc = {
+  id: string; // unique identifier
+  title: string; // title of the document
+  created_at: string; // ISO timestamp
+};
+
+/**
+ * List of Tailwind documents
+ */
+export type TailwindDocs = TailwindDoc[];
+
+/**
+ * API response types for chat detail
+ */
+export type ApiMessage = {
+  id: string;
+  content: string;
+  role: "user" | "assistant" | "system";
+  created_at: string; // ISO timestamp
+  document_ids: string[];
+};
+
+export type ApiDocument = {
+  id: string;
+  filename: string;
+  title: string;
+  created_at: string; // ISO timestamp
+};
+
+export type ApiChat = {
+  id: string;
+  title: string;
+  created_at: string;
+};
+
+export type ChatResponse = {
+  chat: ApiChat;
+  messages: ApiMessage[];
+  documents: ApiDocument[];
+};

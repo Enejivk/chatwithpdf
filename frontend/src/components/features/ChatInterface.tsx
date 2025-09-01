@@ -14,7 +14,6 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const messageContainerRef = useRef<HTMLDivElement>(null);
-  const [chatGroupId, setChatGroupId] = useState<string | undefined>(undefined);
   const { chatId } = useParams<{ chatId: string }>();
   const navigate = useNavigate();
 
@@ -44,27 +43,32 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
 
   useEffect(() => {
     const loadChat = async () => {
-      if (chatId) {
+      if (chatId && chatId !== "new") {
         try {
           setIsLoading(true);
           const chatData = await chatService.getChatById(chatId);
           setMessages(chatData.messages || []);
-          setChatGroupId(chatId);
         } catch (error) {
           console.error("Error loading chat:", error);
         } finally {
           setIsLoading(false);
         }
+      } else if (chatId === "new") {
+        // Clear messages for a new chat
+        setMessages([
+          {
+            id: 1,
+            content: "Please upload a PDF document to get started.",
+            sender: "bot",
+            timestamp: new Date(),
+          },
+        ]);
       }
     };
 
     loadChat();
   }, [chatId]);
 
-  /**
-   * Fetch response from backend API
-   * @param message - User's message to send to the backend
-   */
   const fetchResponse = async (message: string) => {
     if (!fileName) return;
 
@@ -73,13 +77,11 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
       const data = await chatService.sendMessage(
         message,
         fileName,
-        chatGroupId,
+        chatId,
         messages.length > 0
           ? String(messages[messages.length - 1].id)
           : undefined
       );
-
-      setChatGroupId(data.chatGroupId);
 
       if (!chatId && data.chatGroupId) {
         navigate(`/chat/${data.chatGroupId}`, { replace: true });
@@ -146,7 +148,7 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
               className={`p-3 max-w-[85%] md:max-w-[80%] md:p-2 text-sm md:text-base rounded-2xl shadow-md ${
                 message.sender === "user"
                   ? "bg-[#DD5953] text-white rounded-tr-none"
-                  : "bg-[#f2f2f310] text-gray-100 rounded-tl-none"
+                  : "bg-[#f2f2f210] text-gray-100 rounded-tl-none"
               }`}
             >
               {message.content}

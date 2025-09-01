@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { DocumentList } from "../types";
+import type { ChatResponse, DocumentList, TailwindDocs } from "../types";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -9,12 +9,34 @@ const apiClient = axios.create({
 });
 
 export const documentService = {
+  getUserDocuments: async (): Promise<DocumentList> => {
+    try {
+      const response = await apiClient.get<DocumentList>("/user/documents");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching user documents:", error);
+      throw error;
+    }
+  },
+
   getDocuments: async (): Promise<DocumentList> => {
     try {
       const response = await apiClient.get<DocumentList>("/user/documents");
       return response.data;
     } catch (error) {
       console.error("Error fetching documents:", error);
+      throw error;
+    }
+  },
+
+  getChatDocuments: async (chatId: string): Promise<DocumentList> => {
+    try {
+      const response = await apiClient.get<DocumentList>(
+        `/chat/${chatId}/documents`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching documents for chat ${chatId}:`, error);
       throw error;
     }
   },
@@ -29,11 +51,8 @@ export const documentService = {
     }
   },
 
-  uploadPdf: async (file: File): Promise<any> => {
+  uploadPdf: async (formData: FormData): Promise<any> => {
     try {
-      const formData = new FormData();
-      formData.append("pdf_file", file);
-
       const response = await apiClient.post("/upload_pdf", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -84,12 +103,34 @@ export const chatService = {
     }
   },
 
+  getChatHistory: async (): Promise<TailwindDocs> => {
+    try {
+      const response = await apiClient.get<TailwindDocs>("/chats");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      throw error;
+    }
+  },
+
   getChatById: async (chatId: string): Promise<any> => {
     try {
       const response = await apiClient.get<any>(`/chat/${chatId}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching chat ${chatId}:`, error);
+      throw error;
+    }
+  },
+
+  getChatHistoryDetail: async (chatId: string): Promise<ChatResponse> => {
+    try {
+      const response = await apiClient.get<ChatResponse>(
+        `/chathistory/${chatId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching chat history detail for ${chatId}:`, error);
       throw error;
     }
   },

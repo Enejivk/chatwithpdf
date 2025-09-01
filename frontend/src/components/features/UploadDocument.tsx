@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { FaPlus, FaCheck } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa";
 import { BsFillFilePdfFill } from "react-icons/bs";
 import { documentService } from "../../services/api";
 import type { DocumentList, UploadDocumentProps } from "../../types";
 import { toast, Toaster } from "sonner";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const UploadDocument: React.FC<UploadDocumentProps> = ({
   setSelectedFileIds,
@@ -13,31 +14,56 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [documents, setDocuments] = useState<DocumentList>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getIdFromUrl = () => {
+    const pathParts = location.pathname.split("/");
+    return pathParts[pathParts.length - 1];
+  };
 
   const fetchDocuments = async () => {
     try {
       setIsLoading(true);
-      const documentList = await documentService.getDocuments();
-      setDocuments(documentList);
+      const chatId = getIdFromUrl();
+
+      if (chatId && chatId !== "" && chatId !== "chat") {
+        const documentList = await documentService.getChatDocuments(chatId);
+        setDocuments(documentList);
+      } else {
+        setDocuments([]);
+        console.log("No valid chat ID found in URL");
+      }
     } catch (error) {
       console.error("Error fetching documents:", error);
+      setDocuments([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    console.log("Fetching documents for chat ID:", getIdFromUrl());
     fetchDocuments();
-  }, []);
+  }, [location.pathname]);
 
+  const isNewChat = getIdFromUrl() === "new" || getIdFromUrl() === "chat";
   const uploadFileToBackend = async (file: File) => {
     if (!file) return;
-
+    const formData = new FormData();
+    formData.append("document", file);
+    if (!isNewChat) {
+      formData.append("chat_id", getIdFromUrl());
+    }
     try {
       setIsUploading(true);
-      await documentService.uploadPdf(file);
+      const response = await documentService.uploadPdf(formData);
+      if (isNewChat) {
+        navigate(`/chat/${response.chat_id}`);
+      } else {
+        setDocuments((prevDocs) => [response.document, ...prevDocs]);
+      }
 
-      await fetchDocuments();
       setFile(null);
       toast.success("File uploaded successfully!");
     } catch (err) {
@@ -55,15 +81,26 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
   }, [file]);
 
   const selectAllDocuments = () => {
-    const allDocumentIds = documents.map((doc) => doc.document_id);
+    console.log("Selecting all documents");
+    const allDocumentIds = documents.map((doc) => doc.id);
+    console.log("All document IDs:", allDocumentIds);
     setSelectedFileIds(allDocumentIds);
   };
 
   const toggleDocumentSelection = (documentId: string) => {
+    console.log("Toggling document with ID:", documentId);
+    console.log("Current selected IDs:", selectedFileIds);
+
     if (selectedFileIds.includes(documentId)) {
-      setSelectedFileIds(selectedFileIds.filter((id) => id !== documentId));
+      // Deselect this document
+      const newSelectedIds = selectedFileIds.filter((id) => id !== documentId);
+      console.log("After deselection:", newSelectedIds);
+      setSelectedFileIds(newSelectedIds);
     } else {
-      setSelectedFileIds([...selectedFileIds, documentId]);
+      // Select this document
+      const newSelectedIds = [...selectedFileIds, documentId];
+      console.log("After selection:", newSelectedIds);
+      setSelectedFileIds(newSelectedIds);
     }
   };
 
@@ -80,7 +117,7 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
     <div className="flex flex-col h-full overflow-hidden w-full">
       <Toaster position="top-right" richColors />
       <div className="p-3 md:p-5 flex-1 overflow-hidden flex flex-col">
-        <div className="mb-3 md:mb-4 flex-shrink-0 flex justify-center">
+        <div className="mb-3 md:mb-4 flex-shrink-0 flex flex-col gap-2 items-center">
           <input
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
@@ -167,13 +204,14 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  onClick={() => toggleDocumentSelection(doc.document_id)}
+                  onClick={() => toggleDocumentSelection(doc.id)}
                   className={`cursor-pointer flex items-center p-3 rounded-xl transition-all duration-200 w-[90%] md:w-full
                   ${
-                    selectedFileIds.includes(doc.document_id)
+                    selectedFileIds.includes(doc.id)
                       ? "bg-gray-700 border-l-4 border-[#DD5953]"
                       : "bg-gray-700/30 hover:bg-gray-700/50"
                   }`}
+                  data-document-id={doc.id}
                 >
                   <div className="flex-shrink-0 mr-3 flex items-center justify-center">
                     <BsFillFilePdfFill className="text-red-500 text-xl" />

@@ -6,7 +6,7 @@ import UploadDocument from "./components/features/UploadDocument";
 import MessageHistory from "./components/features/MessageHistory";
 import ChatInterface from "./components/features/ChatInterface";
 
-import type { Message, ChatSession } from "./types";
+import type { Message } from "./types";
 
 const App: React.FC = () => {
   const [fileName, setFileName] = useState<string>("");
@@ -14,9 +14,7 @@ const App: React.FC = () => {
   const [showDocuments, setShowDocuments] = useState<boolean>(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
-    null
-  );
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 2,
@@ -26,7 +24,7 @@ const App: React.FC = () => {
     },
   ]);
 
-  // Check if the viewport is mobile sized on initial load and window resize
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -52,16 +50,6 @@ const App: React.FC = () => {
   };
 
 
-  const handleSelectSession = (session: ChatSession) => {
-    setCurrentSession(session);
-    setFileName(session.documentName);
-    setMessages(session.messages);
-
-    if (isMobile) {
-      setShowHistory(false);
-    }
-  };
-
   return (
     <BrowserRouter>
       <Layout
@@ -81,7 +69,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="overflow-hidden flex-1">
-              <MessageHistory onSelectSession={handleSelectSession} />
+              <MessageHistory />
             </div>
           </div>
 
@@ -96,7 +84,7 @@ const App: React.FC = () => {
 
           {showHistory && isMobile && (
             <div className="absolute z-10 inset-x-0 top-16 mx-3 h-[60vh] bg-black rounded-2xl overflow-hidden">
-              <MessageHistory onSelectSession={handleSelectSession} />
+              <MessageHistory />
             </div>
           )}
 
@@ -110,7 +98,6 @@ const App: React.FC = () => {
                     selectedFileIds={selectedFileIds}
                     isMobile={isMobile}
                     showDocuments={showDocuments}
-                    currentSession={currentSession || undefined}
                     messages={messages}
                     setMessages={setMessages}
                   />
@@ -129,12 +116,7 @@ const App: React.FC = () => {
                   />
                 }
               />
-              <Route
-                path="/history"
-                element={
-                  <MessageHistory onSelectSession={handleSelectSession} />
-                }
-              />
+              <Route path="/history" element={<MessageHistory />} />
             </Routes>
           </div>
         </div>
