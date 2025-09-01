@@ -1,12 +1,101 @@
 import axios from "axios";
+import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 import type { ChatResponse, DocumentList, TailwindDocs } from "../types";
+import { toast } from "sonner";
 
 const API_BASE_URL = "http://localhost:8000";
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
+let isRefreshing = false;
+let failedQueue: {
+  resolve: (value: unknown) => void;
+  reject: (reason?: any) => void;
+  config: InternalAxiosRequestConfig;
+}[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((request) => {
+    if (error) {
+      request.reject(error);
+    } else {
+      request.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+const refreshAuthToken = async () => {
+  try {
+    const response = await apiClient.post(
+      "/auth/refresh",
+      {},
+      {
+        withCredentials: true,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve,
+            reject,
+            config: originalRequest,
+          });
+        })
+          .then(() => {
+            return apiClient(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const tokenRefreshResponse = await refreshAuthToken();
+        isRefreshing = false;
+
+        processQueue(null, tokenRefreshResponse);
+
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        isRefreshing = false;
+        processQueue(refreshError, null);
+
+        toast.error(
+          "Your session has expired. Please log in again to continue.",
+          {
+            duration: 5000,
+            position: "top-center",
+            description:
+              "You will need to authenticate to access your documents and chat history.",
+          }
+        );
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export const documentService = {
   getUserDocuments: async (): Promise<DocumentList> => {
@@ -69,21 +158,17 @@ export const documentService = {
 };
 
 export const chatService = {
-  sendMessage: async (
-    query: string,
-    fileName: string,
-    chatGroupId?: string,
-    messageId?: string
-  ): Promise<{ response: string; chatGroupId: string }> => {
+  sendMessage: async (query: string, chatId: string, documentIds: string[]) => {
     try {
       const response = await apiClient.post<{
-        response: string;
-        chatGroupId: string;
+        id: string;
+        content: string;
+        sender: "bot";
+        timestamp: string;
       }>("/chat", {
         query,
-        file_name: fileName,
-        chat_group_id: chatGroupId,
-        message_id: messageId,
+        chat_id: chatId,
+        document_ids: documentIds,
       });
 
       return response.data;

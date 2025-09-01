@@ -1,7 +1,7 @@
 from email.mime import message
 from unittest import result
 from urllib import response
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Response
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -21,13 +21,11 @@ class ChatMessage(BaseModel):
     document_ids: list[str] = []
 
 class ChatParameter(BaseModel):
-    file_name: str
     query: str = None
-    group_id: str | None = None
+    chat_id: str | None = None
     document_ids: list[str] | None = None
     chat_history: list[ChatMessage] = []
-
-
+    
 # Create database tables
 database.create_tables()
 
@@ -42,6 +40,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def save_to_database(db, user_id, group_id, content, sender, message_id, document_ids):
+    """Save a message to the database."""
+    message = database.Message(
+        id=message_id if message_id else None,
+        user_id=user_id,
+        group_id=group_id,
+        role=sender,
+        content=content,
+        document_ids=",".join(document_ids) if document_ids else None
+    )
+    db.add(message)
+    db.commit()
+    return message
 
 @app.get("/")
 def health_check():
@@ -116,12 +128,13 @@ async def refresh_token(
 @app.post('/upload_pdf')
 async def upload_pdf(
     document: UploadFile = File(...), 
+    chat_id: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user = Depends(auth.get_current_user)
 ):
     user_id = current_user["user_id"]
     file_id: str = helpers.generate_unique_id()
-    chat_id = helpers.generate_unique_id()
+    new_chat_id = helpers.generate_unique_id()
 
     os.makedirs(config.TEMP_DIR, exist_ok=True)
 
@@ -136,12 +149,43 @@ async def upload_pdf(
 
     prepare_save_pdf = handleProcessDocuments()
     texts = prepare_save_pdf.extract_text(file_path=pdf_path)
+    
+    # Convert empty string to None and check if chat_id is provided
+    if chat_id == "":
+        chat_id = None
+    generate_summary = chat_id is None
 
-    prepare_save_pdf.save_text_to_chroma(texts=texts, file_id=file_id, file_name=document.filename, current_user_id=user_id)
+    document_summary = prepare_save_pdf.save_text_to_chroma(
+        texts=texts, file_id=file_id,
+        file_name=document.filename,
+        current_user_id=user_id, generate_summary=generate_summary
+        )
+    
+    
+    group_id = chat_id if chat_id else new_chat_id
+    save_to_database(
+        db=db,
+        user_id=user_id,
+        group_id=group_id,
+        content=document_summary.get('summary', ''),
+        sender="assistant",
+        message_id=None,
+        document_ids=[file_id]
+    )
+    
+    # Create a new chat for this document if chat_id is not provided
+    if not chat_id:
+        db_chat = database.Chat(
+            id=new_chat_id,
+            user_id=user_id,
+            title=document_summary.get('title', 'New Chat')
+        )
+        db.add(db_chat)
+        chat_id = new_chat_id
     
     # Store document info in the database
     db_document = database.Document(
-        chat_id=chat_id,
+        chat_id=group_id,
         user_id=user_id,
         id=file_id,
         filename=document.filename,
@@ -151,31 +195,19 @@ async def upload_pdf(
         title=document.filename.replace(".pdf", "")
     )
     
-    # Create a new chat for this document
-    db_chat = database.Chat(
-        id=chat_id,
-        user_id=user_id,
-        title=document.filename.replace(".pdf", "")
-    )
-    
-    db.add(db_chat)
     db.add(db_document)
     db.commit()
     db.refresh(db_document)
     
-    # Delete the PDF file after successful processing
-    prepare_save_pdf.delete_pdf_file()
+    prepare_save_pdf.delete_pdf_file(pdf_path)
     return {
-        "status": "success",
-        "id": db_document.id,
-        "chat_id": db_document.chat_id, 
-        "user_id": db_document.user_id,
-        "filename": db_document.filename,
-        "content_type": db_document.content_type,
-        "file_path": db_document.file_path,
-        "file_size": db_document.file_size,
-        "title": db_document.title,
-        "created_at": db_document.created_at
+        "chat_id": db_document.chat_id,
+        "document": {
+            "id": db_document.id,
+            "filename": db_document.filename,
+            "title": db_document.title,
+            "created_at": db_document.created_at
+        }
     }
 
 @app.post('/chat')
@@ -186,49 +218,44 @@ async def query_chroma(
 ):
     user_id = current_user["user_id"]
     
-    group_id = chat_query.group_id
-    if not group_id:
-        group_id = helpers.generate_unique_id()
-
+    group_id = chat_query.chat_id
     prepare_save_pdf = handleProcessDocuments()
     
     results = prepare_save_pdf.query_chroma(chat_query.query, chat_query.document_ids)
-    
+    print(results)
     response = prepare_save_pdf.generate_tailored_response(
         query=chat_query.query,
         context=results
     )
+    message_id = helpers.generate_unique_id()
     
-    message = database.Message(
-        user_id=user_id,
-        group_id=group_id,
-        role="user",
-        content=chat_query.query,
-        document_ids=",".join(chat_query.document_ids) if chat_query.document_ids else None
+    save_to_database(
+        db=db, 
+        user_id=user_id, 
+        group_id=group_id, 
+        content=chat_query.query, 
+        sender="user", 
+        message_id=None, 
+        document_ids=chat_query.document_ids
+    )
+    
+    save_to_database(
+        db=db, 
+        user_id=user_id, 
+        group_id=group_id, 
+        content=response, 
+        sender="assistant", 
+        message_id=message_id, 
+        document_ids=chat_query.document_ids
     )
 
-    # Add the message to the database
-    db.add(message)
-    db.commit()
-    
-    # Also save the assistant's response
-    response_message = database.Message(
-        user_id=user_id,
-        group_id=group_id,
-        role="assistant",
-        content=response,
-        document_ids=",".join(chat_query.document_ids) if chat_query.document_ids else None
-    )
-    
-    db.add(response_message)
-    db.commit()
-    
     return {
-        "response": response, 
-        "context": results,
-        "group_id": group_id,
-        "message_id": message.id
-    }
+            "id": message_id,
+            "content": response,
+            "sender": 'assistant',
+            "timestamp": "now",
+            }
+
 
 
 @app.get('/user/documents')
@@ -257,7 +284,29 @@ async def get_user_documents(
             } for doc in documents
         ]
     
-
+@app.get('/chat/{chat_id}/documents')
+async def get_chat_documents(
+    chat_id: str,
+    db: Session = Depends(database.get_db),
+    current_user = Depends(auth.get_current_user)
+):
+    user_id = current_user["user_id"]
+    
+    # Get documents from database for this chat
+    documents = db.query(database.Document).filter(
+        database.Document.chat_id == chat_id,
+        database.Document.user_id == user_id
+    ).all()    
+    
+    print(documents)
+    return [
+        {
+            "id": doc.id,
+            "filename": doc.filename,
+            "title": doc.title, 
+            "created_at": doc.created_at
+        } for doc in documents
+    ]
 
 @app.get('/get_document/{document_id}')
 async def get_document(
@@ -286,75 +335,39 @@ async def get_document(
         "created_at": document.created_at
     }
 
-@app.delete('/clear_collection')
-async def clear_collection(
-    db: Session = Depends(database.get_db),
-    current_user = Depends(auth.get_current_user)
-):
-    # Only allow admin to clear collections
-    user_id = current_user["user_id"]
-    user = db.query(database.User).filter(database.User.id == user_id).first()
-    
-    # You may want to add an is_admin field to your User model
-    # For now, we'll just check if this is the first user (ID 1)
-    if not user or user.id != 1:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform this action"
-        )
-        
-    prepare_save_pdf = handleProcessDocuments("", current_user_id=user_id)
-    response = prepare_save_pdf.clear_collection()
-    return {"response": response}
 
-
-@app.get('/chat_history/{document_id}')
-async def get_chat_history(
-    document_id: str, 
+@app.get('/chat/{chat_history_id}')
+async def get_chat_history_detail(
+    chat_history_id: str,
     db: Session = Depends(database.get_db),
     current_user = Depends(auth.get_current_user)
 ):
     user_id = current_user["user_id"]
-    
-    # Get document from database
-    document = db.query(database.Document).filter(
-        database.Document.id == document_id,
-        database.Document.user_id == user_id
+    chat = db.query(database.Chat).filter(
+        database.Chat.id == chat_history_id,
+        database.Chat.user_id == user_id
     ).first()
     
-    if not document:
-        return {"history": []}
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat history not found")
     
-    # Get chat history for document using Message model instead of ChatHistory
-    history = db.query(database.Message).filter(
-        database.Message.document_ids.contains(document.id),
+    # Get messages for this chat history
+    messages = db.query(database.Message).filter(
+        database.Message.group_id == chat_history_id,
         database.Message.user_id == user_id
-    ).order_by(database.Message.created_at.desc()).all()
-    
-    # Group messages by role to create conversation pairs
-    conversations = []
-    for i in range(0, len(history), 2):
-        if i+1 < len(history):
-            # Assuming messages are paired (user query followed by assistant response)
-            conversations.append({
-                "id": history[i].id,
-                "query": history[i].content if history[i].role == "user" else history[i+1].content,
-                "response": history[i+1].content if history[i+1].role == "assistant" else history[i].content,
-                "created_at": history[i].created_at
-            })
-        else:
-            # Handle odd number of messages
-            conversations.append({
-                "id": history[i].id,
-                "query": history[i].content if history[i].role == "user" else "",
-                "response": "" if history[i].role == "user" else history[i].content,
-                "created_at": history[i].created_at
-            })
+    ).order_by(database.Message.created_at.asc()).all()
     
     return {
-        "history": conversations
+        "messages": [
+            {
+                "id": msg.id,
+                "content": msg.content,
+                "sender": msg.role,
+                "created_at": msg.created_at,
+                "document_ids": msg.document_ids.split(",") if msg.document_ids else []
+            } for msg in messages
+        ],
     }
-
 
 @app.get('/documents')
 async def get_all_documents(
@@ -405,6 +418,119 @@ async def get_current_user_profile(
         "created_at": user.created_at,
         "last_login": user.last_login
     }
+
+
+@app.get('/chats')
+async def get_all_chats(
+    db: Session = Depends(database.get_db),
+    current_user = Depends(auth.get_current_user)
+):
+    user_id = current_user["user_id"]
+    
+    # Query all chats for the current user
+    chats = db.query(database.Chat).filter(
+        database.Chat.user_id == user_id
+    ).order_by(database.Chat.created_at.desc()).all()
+    
+    return [
+        {
+            "id": chat.id,
+            "title": chat.title,
+            "created_at": chat.created_at
+        } for chat in chats
+    ]
+    
+@app.get('/chat/{chat_id}/detail')
+async def get_chat_detail(
+    chat_id: str,
+    db: Session = Depends(database.get_db),
+    current_user = Depends(auth.get_current_user)
+):
+    user_id = current_user["user_id"]
+    
+    # Get chat info
+    chat = db.query(database.Chat).filter(
+        database.Chat.id == chat_id,
+        database.Chat.user_id == user_id
+    ).first()
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Get documents for this chat
+    documents = db.query(database.Document).filter(
+        database.Document.chat_id == chat_id,
+        database.Document.user_id == user_id
+    ).all()
+    
+    # Get messages for this chat
+    messages = db.query(database.Message).filter(
+        database.Message.group_id == chat_id,
+        database.Message.user_id == user_id
+    ).order_by(database.Message.created_at.asc()).all()
+    
+    return {
+        "chat": {
+            "id": chat.id,
+            "title": chat.title,
+            "created_at": chat.created_at
+        },
+        "documents": [
+            {
+                "id": doc.id,
+                "filename": doc.filename,
+                "title": doc.title,
+                "created_at": doc.created_at
+            } for doc in documents
+        ],
+        "messages": [
+            {
+                "id": msg.id,
+                "content": msg.content,
+                "role": msg.role,
+                "created_at": msg.created_at,
+                "document_ids": msg.document_ids.split(",") if msg.document_ids else []
+            } for msg in messages
+        ]
+    }
+
+
+@app.delete('/document/{document_id}')
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(database.get_db),
+    current_user = Depends(auth.get_current_user)
+):
+    user_id = current_user["user_id"]
+    
+    # Get document from database
+    document = db.query(database.Document).filter(
+        database.Document.id == document_id,
+        database.Document.user_id == user_id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or you don't have permission to delete it"
+        )
+
+    # Delete associated messages
+    db.query(database.Message).filter(
+        database.Message.document_ids.contains(document_id)
+    ).delete(synchronize_session=False)
+    
+    # Delete the document record
+    db.delete(document)
+    db.commit()
+    
+    # Delete from vector store
+    prepare_save_pdf = handleProcessDocuments()
+    prepare_save_pdf.delete_document(document_id)
+    
+    return {"message": "Document deleted successfully"}
+
+
 
 
 if __name__ == "__main__":

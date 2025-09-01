@@ -55,6 +55,14 @@ const UploadDocument: React.FC<UploadDocumentProps> = ({
     if (!isNewChat) {
       formData.append("chat_id", getIdFromUrl());
     }
+
+    // Check file size - 3MB = 3 * 1024 * 1024 bytes
+    if (file.size > 3 * 1024 * 1024) {
+      toast.info(
+        "This file is larger than 3MB. It might take some time to process and get ready for chat."
+      );
+    }
+
     try {
       setIsUploading(true);
       const response = await documentService.uploadPdf(formData);

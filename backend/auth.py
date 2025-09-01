@@ -115,7 +115,6 @@ def get_token(db: Session, user_id: int):
 
 
 async def get_token_from_cookie_or_header(request: Request):
-    print("request", vars(request))
     """Get token from either cookie or Authorization header"""
     # Try cookie first
     token = request.cookies.get("access_token")

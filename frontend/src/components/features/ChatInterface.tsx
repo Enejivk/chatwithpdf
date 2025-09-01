@@ -4,10 +4,12 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { chatService } from "../../services/api";
 import type { Message, AddTextInputProps } from "../../types";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
 
 const ChatInterface: React.FC<AddTextInputProps> = ({
   fileName,
+  selectedFileIds,
   setMessages: setParentMessages,
   messages: parentMessages,
 }) => {
@@ -15,7 +17,6 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const { chatId } = useParams<{ chatId: string }>();
-  const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>(
     parentMessages || [
@@ -76,20 +77,13 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
     try {
       const data = await chatService.sendMessage(
         message,
-        fileName,
-        chatId,
-        messages.length > 0
-          ? String(messages[messages.length - 1].id)
-          : undefined
+        chatId || "new",
+        selectedFileIds || []
       );
 
-      if (!chatId && data.chatGroupId) {
-        navigate(`/chat/${data.chatGroupId}`, { replace: true });
-      }
-
       const botMessage: Message = {
-        id: messages.length + 1,
-        content: data.response,
+        id: messages.length + 2,
+        content: data.content,
         sender: "bot",
         timestamp: new Date(),
       };
@@ -123,9 +117,7 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
       id: messages.length + 1,
       content: inputMessage,
       sender: "user",
-      timestamp: new Date(),
     };
-
     setMessages([...messages, newMessage]);
     setInputMessage("");
     fetchResponse(newMessage.content);
@@ -147,11 +139,17 @@ const ChatInterface: React.FC<AddTextInputProps> = ({
             <div
               className={`p-3 max-w-[85%] md:max-w-[80%] md:p-2 text-sm md:text-base rounded-2xl shadow-md ${
                 message.sender === "user"
-                  ? "bg-[#DD5953] text-white rounded-tr-none"
+                  ? "bg-blue-500/10 border border-blue-500/30"
                   : "bg-[#f2f2f210] text-gray-100 rounded-tl-none"
               }`}
             >
-              {message.content}
+              {message.sender === "user" ? (
+                message.content
+              ) : (
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
         ))}

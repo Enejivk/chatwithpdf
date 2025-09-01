@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "sonner";
 
 import Layout from "./components/features/Layout";
 import UploadDocument from "./components/features/UploadDocument";
@@ -23,7 +24,6 @@ const App: React.FC = () => {
       timestamp: new Date(),
     },
   ]);
-
 
   useEffect(() => {
     const checkMobile = () => {
@@ -49,9 +49,9 @@ const App: React.FC = () => {
     }
   };
 
-
   return (
     <BrowserRouter>
+      <Toaster richColors position="top-center" />
       <Layout
         isMobile={isMobile}
         showDocuments={showDocuments}

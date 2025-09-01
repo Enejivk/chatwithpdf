@@ -5,4 +5,5 @@ venv/
 .venv/
 env/
 *.env
-# chroma_db/
+chroma_db/
+pdf_chat.db/

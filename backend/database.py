@@ -51,6 +51,7 @@ class Message(Base):
     content = Column(Text, nullable=False)
     document_ids = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
 
     chat = relationship("Chat", back_populates="messages")
     user = relationship("User", backref="messages")

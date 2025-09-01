@@ -29,10 +29,13 @@ const Layout: React.FC<LayoutProps> = ({
   setShowHistory,
 }) => {
   return (
-    <div className="bg-black min-h-screen h-screen flex flex-col text-gray-100 overflow-hidden">
-      <div className="w-full py-3 md:py-6 px-3 md:px-4 flex flex-col flex-1 overflow-hidden">
+    <div className="bg-black min-h-screen h-screen flex flex-col text-gray-100 
+    overflow-hidden">
+      <div className="w-full py-3 md:py-6 px-3 md:px-4 flex 
+      flex-col flex-1 overflow-hidden">
         {/* Desktop Header with Account Button */}
-        <div className="hidden md:flex justify-between items-center mb-3">
+        <div className="hidden md:flex justify-between 
+        items-center mb-3">
           <Logo size="md" withText={true} />
           <div className="ml-auto">
             <AuthButton />
